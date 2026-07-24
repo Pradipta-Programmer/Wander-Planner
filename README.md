@@ -148,7 +148,6 @@ at it before the page's script runs by adding this above the closing
 .
 ├── main.py            # FastAPI backend — itinerary engine, replanning, chat, persistence
 ├── index.html         # Single-file frontend — board UI, map, budget panel, chat
-├── requirements.txt   # Backend dependencies
 ├── .gitignore         # Keeps runtime/session files and Python artifacts out of the repo
 └── README.md          # You are here
 ```
