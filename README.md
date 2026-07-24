@@ -1,6 +1,6 @@
-# TravelGPT — Adaptive Itinerary Board
+# Wander Planner — Adaptive Itinerary Board
 
-TravelGPT is a self-contained trip-planning prototype: a FastAPI backend that
+Wander Planner is a self-contained trip-planning prototype: a FastAPI backend that
 builds and adaptively replans multi-day itineraries, and a single-file HTML/JS
 frontend that renders them as an interactive board with a live map, a budget
 tracker, and a chat assistant that can edit the plan in plain English.
@@ -130,14 +130,14 @@ at it before the page's script runs by adding this above the closing
 `</head>` tag in `index.html`:
 
 ```html
-<script>window.TRAVELGPT_API_BASE = "https://your-api.example.com/api";</script>
+<script>window.Wander Planner_API_BASE = "https://your-api.example.com/api";</script>
 ```
 
 > **Heads up if you're using a live-reloading dev server** (VS Code "Live
 > Server", `live-server`, browser-sync, etc.): by default the session store
 > is written to your OS temp directory, specifically so it can't land in a
 > folder your dev server is watching and trigger an unwanted auto-refresh
-> right after you click Generate. If you set `TRAVELGPT_DATA_FILE` yourself,
+> right after you click Generate. If you set `Wander Planner_DATA_FILE` yourself,
 > just avoid pointing it at the same folder you're serving the frontend from.
 
 ---
@@ -161,18 +161,18 @@ hardcoded or rebuilt to change behavior.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TRAVELGPT_ALLOWED_ORIGINS` | `http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080` | Comma-separated CORS allow-list. Add your deployed frontend's origin here. |
-| `TRAVELGPT_DATA_FILE` | `<OS temp dir>/travelgpt_sessions_store.json` | Where itinerary sessions are persisted. Keep this outside any folder a live-reloading dev server watches. |
-| `TRAVELGPT_MAX_UNDO_HISTORY` | `25` | How many prior states are kept for Undo. |
-| `TRAVELGPT_BUFFER_MIN` | `20` | Minimum gap (minutes) enforced between consecutive itinerary items. |
-| `TRAVELGPT_HOST` | `0.0.0.0` | Bind host — only used when running `python main.py` directly. |
-| `TRAVELGPT_PORT` | `8000` | Bind port — only used when running `python main.py` directly. |
+| `Wander Planner_ALLOWED_ORIGINS` | `http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080` | Comma-separated CORS allow-list. Add your deployed frontend's origin here. |
+| `Wander Planner_DATA_FILE` | `<OS temp dir>/Wander Planner_sessions_store.json` | Where itinerary sessions are persisted. Keep this outside any folder a live-reloading dev server watches. |
+| `Wander Planner_MAX_UNDO_HISTORY` | `25` | How many prior states are kept for Undo. |
+| `Wander Planner_BUFFER_MIN` | `20` | Minimum gap (minutes) enforced between consecutive itinerary items. |
+| `Wander Planner_HOST` | `0.0.0.0` | Bind host — only used when running `python main.py` directly. |
+| `Wander Planner_PORT` | `8000` | Bind port — only used when running `python main.py` directly. |
 
 Example:
 
 ```bash
-export TRAVELGPT_ALLOWED_ORIGINS="https://mytravelapp.com"
-export TRAVELGPT_MAX_UNDO_HISTORY=50
+export Wander Planner_ALLOWED_ORIGINS="https://mytravelapp.com"
+export Wander Planner_MAX_UNDO_HISTORY=50
 python main.py
 ```
 
@@ -317,17 +317,17 @@ currency toggle or conversion; the app is INR-only end to end.
 **"Error connecting to backend"** — Confirm `python main.py` is running and
 reachable at the URL shown in the message. If you're serving the frontend
 from a different origin/port than the default allow-list, add it to
-`TRAVELGPT_ALLOWED_ORIGINS`.
+`Wander Planner_ALLOWED_ORIGINS`.
 
 **CORS errors in the browser console** — The frontend's origin isn't in
-`TRAVELGPT_ALLOWED_ORIGINS`. Add it (comma-separated) and restart the
+`Wander Planner_ALLOWED_ORIGINS`. Add it (comma-separated) and restart the
 backend.
 
 **Page reloads right after clicking "Generate"** — This was a known issue
 caused by the session store defaulting to a path next to `main.py`, which a
 live-reloading dev server would pick up as a file change and refresh the
 page. It's fixed by default now (session data lives in the OS temp
-directory), but if you've set `TRAVELGPT_DATA_FILE` manually, make sure it's
+directory), but if you've set `Wander Planner_DATA_FILE` manually, make sure it's
 not pointing inside the folder you're serving the frontend from.
 
 ---
