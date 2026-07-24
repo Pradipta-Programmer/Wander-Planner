@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TravelGPT — Adaptive Itinerary Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --bg: #14130f;
+    --panel: #1c1a14;
+    --panel-raised: #242119;
+    --board: #0f0e0a;
+    --amber: #e8a33d;
+    --amber-dim: #8a6524;
+    --teal: #4fb6a8;
+    --danger: #d9603d;
+    --ink: #f1ede4;
+    --muted: #8a8677;
+    --hair: #35311f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(232,163,61,0.08), transparent),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  /* ---------- Header ---------- */
+  .header{
+    padding:28px 32px 20px;
+    border-bottom:1px solid var(--hair);
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .brand{display:flex; align-items:baseline; gap:12px;}
+  .brand-mark{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:13px;
+    letter-spacing:0.18em;
+    color:var(--board);
+    background:var(--amber);
+    padding:4px 8px;
+  }
+  .brand h1{
+    font-size:22px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .header .tagline{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:0.04em;
+  }
+  .clock{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--amber);
+    letter-spacing:0.08em;
+  }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: 340px 1fr 320px;
+    gap:1px;
+    background:var(--hair);
+    min-height:calc(100vh - 78px);
+  }
+  @media (max-width: 980px){
+    .layout{grid-template-columns:1fr;}
+    .board-head, .board-row .flip-inner{grid-template-columns: 64px 1fr 96px !important;}
+    .board-cost{display:none;}
+  }
+  @media (max-width: 560px){
+    .header{padding:18px 16px 14px;}
+    .col{padding:16px;}
+    .board-head, .board-row .flip-inner{grid-template-columns: 56px 1fr 0px !important;}
+    .board-status{display:none;}
+    .brand h1{font-size:18px;}
+    .header .tagline{display:none;}
+  }
+  .col{background:var(--bg); padding:24px;}
+  .col-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    color:var(--muted);
+    text-transform:uppercase;
+    margin:0 0 16px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .col-title::before{
+    content:'';
+    width:6px;height:6px;
+    background:var(--amber);
+    display:inline-block;
+  }
+  .section-gap{margin-top:32px;}
+
+  /* ---------- Form ---------- */
+  label{
+    display:block;
+    font-size:11px;
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:0.06em;
+    margin:14px 0 6px;
+  }
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=number], input[type=date], textarea{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--hair);
+    color:var(--ink);
+    padding:10px 12px;
+    font-family:'Space Grotesk', sans-serif;
+    font-size:14px;
+    border-radius:2px;
+  }
+  textarea{resize:vertical; min-height:56px;}
+  input:focus, textarea:focus, button:focus-visible{
+    outline:2px solid var(--amber);
+    outline-offset:1px;
+  }
+  .field-error{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--danger);
+    margin-top:6px;
+    display:none;
+  }
+  .field-error.show{display:block;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+  .chip{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    padding:6px 10px;
+    border:1px solid var(--hair);
+    color:var(--muted);
+    cursor:pointer;
+    user-select:none;
+    transition:all .15s ease;
+  }
+  .chip.active{
+    border-color:var(--amber);
+    color:var(--amber);
+    background:rgba(232,163,61,0.08);
+  }
+  .btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:11px 16px;
+    background:var(--amber);
+    color:var(--board);
+    border:none;
+    cursor:pointer;
+    width:100%;
+    margin-top:18px;
+    font-weight:600;
+    transition:filter .15s ease;
+  }
+  .btn:hover{filter:brightness(1.1);}
+  .btn:disabled{background:var(--hair); color:var(--muted); cursor:not-allowed;}
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--hair);
+    color:var(--ink);
+    text-align:left;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .btn-ghost:hover:not(:disabled){border-color:var(--amber); color:var(--amber);}
+  .btn-danger{border-color:var(--danger); color:var(--danger);}
+  .btn-danger:hover:not(:disabled){border-color:var(--danger); color:var(--danger); background:rgba(217,96,61,0.08);}
+  .btn-row{display:flex; gap:8px; margin-top:8px;}
+  .btn-row .btn{margin-top:0; width:auto; flex:1; padding:10px 12px; font-size:11px;}
+
+  /* ---------- Disruption buttons ---------- */
+  .disrupt-list{display:flex; flex-direction:column; gap:8px; margin-top:8px;}
+  .disrupt-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    padding:10px 12px;
+    background:var(--panel);
+    border:1px solid var(--hair);
+    color:var(--ink);
+    cursor:pointer;
+    text-align:left;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    letter-spacing:0.02em;
+  }
+  .disrupt-btn:hover:not(:disabled){border-color:var(--danger); color:var(--danger);}
+  .disrupt-btn:disabled{opacity:.4; cursor:not-allowed;}
+  .disrupt-btn span.icon{opacity:.6;}
+
+  /* ---------- Budget panel ---------- */
+  .budget-panel{
+    background:var(--panel);
+    border:1px solid var(--hair);
+    padding:14px 16px;
+    margin-bottom:14px;
+    display:none;
+  }
+  .budget-panel.show{display:block;}
+  .budget-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:12px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  @media (max-width:640px){ .budget-grid{grid-template-columns:repeat(2, 1fr);} }
+  .budget-cell .lbl{font-size:10px; letter-spacing:0.1em; color:var(--muted); text-transform:uppercase;}
+  .budget-cell .val{font-size:15px; color:var(--ink); margin-top:4px; font-weight:600;}
+  .budget-cell.warn .val{color:var(--danger);}
+  .budget-bar-track{
+    margin-top:12px;
+    height:6px;
+    background:var(--hair);
+    width:100%;
+    position:relative;
+    overflow:hidden;
+  }
+  .budget-bar-fill{
+    height:100%;
+    background:var(--teal);
+    transition:width .3s ease;
+  }
+  .budget-bar-fill.over{background:var(--danger);}
+  .budget-warning{
+    margin-top:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--danger);
+    display:none;
+  }
+  .budget-warning.show{display:block;}
+
+  /* ---------- Board ---------- */
+  .board-wrap{
+    background:var(--board);
+    border:1px solid var(--hair);
+  }
+  .board-head{
+    display:grid;
+    grid-template-columns: 78px 1fr 130px 110px;
+    padding:10px 16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.12em;
+    color:var(--amber-dim);
+    border-bottom:1px solid var(--hair);
+  }
+  .board-row{
+    display:grid;
+    grid-template-columns: 78px 1fr 130px 110px;
+    padding:14px 16px;
+    border-bottom:1px solid var(--hair);
+    align-items:center;
+    perspective:600px;
+    border-left:3px solid transparent;
+    cursor:grab;
+    transition:background .15s ease, border-left-color .15s ease;
+  }
+  .board-row:last-child{border-bottom:none;}
+  .board-row:hover{background:rgba(232,163,61,0.04);}
+  .board-row.status-delayed-row{border-left-color:var(--danger);}
+  .board-row.status-changed-row{border-left-color:var(--amber);}
+  .board-row.map-highlight{background:rgba(79,182,168,0.12);}
+  .board-row.dragging{opacity:.35;}
+  .board-row.drag-over{border-top:2px solid var(--teal);}
+  .board-row .flip-inner{
+    grid-column: 1 / -1;
+    display:grid;
+    grid-template-columns: 78px 1fr 130px 110px;
+    align-items:center;
+    transform-style:preserve-3d;
+    transition:transform .45s cubic-bezier(.4,.0,.2,1), opacity .3s ease;
+  }
+  .board-row.flipping .flip-inner{
+    transform:rotateX(90deg);
+    opacity:0.2;
+  }
+  .board-time{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+    color:var(--amber);
+    font-weight:600;
+  }
+  .board-event .title{font-size:14px; font-weight:600;}
+  .board-event .meta{font-size:11.5px; color:var(--muted); margin-top:2px; font-family:'IBM Plex Mono', monospace;}
+  .board-event .reason{font-size:11px; color:var(--amber-dim); margin-top:3px; font-style:italic;}
+  .board-status{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:4px 8px;
+    width:fit-content;
+  }
+  .status-on-time{color:var(--teal); border:1px solid var(--teal);}
+  .status-changed{color:var(--amber); border:1px solid var(--amber);}
+  .status-delayed{color:var(--danger); border:1px solid var(--danger);}
+  .board-cost{font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--muted); text-align:right;}
+
+  .empty-board{
+    padding:60px 20px;
+    text-align:center;
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    line-height:1.8;
+  }
+  .empty-board.error-board{color:var(--danger);}
+  .empty-board .big{
+    font-size:34px;
+    color:var(--hair);
+    letter-spacing:0.3em;
+    margin-bottom:10px;
+  }
+  .error-board .big{color:var(--danger);}
+  .breakdown-box{
+    margin-top:16px;
+    font-size:11.5px;
+    text-align:left;
+    display:inline-block;
+    border:1px solid var(--hair);
+    padding:12px 16px;
+  }
+  .breakdown-box .bd-title{color:var(--muted); letter-spacing:0.08em; margin-bottom:8px;}
+  .breakdown-row{display:flex; justify-content:space-between; gap:24px;}
+  .breakdown-row.total{margin-top:8px; padding-top:8px; border-top:1px solid var(--hair); color:var(--amber);}
+
+  .announcement{
+    margin-top:16px;
+    background:var(--panel);
+    border-left:3px solid var(--teal);
+    padding:14px 16px;
+    font-size:13px;
+    line-height:1.6;
+    display:none;
+  }
+  .announcement.show{display:block;}
+  .announcement .label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.12em;
+    color:var(--teal);
+    margin-bottom:6px;
+    text-transform:uppercase;
+  }
+
+  .trip-summary{
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:6px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--muted);
+    padding:10px 16px;
+    border-bottom:1px solid var(--hair);
+    background:var(--panel);
+  }
+  .trip-summary b{color:var(--ink);}
+
+  /* ---------- Map ---------- */
+  .map-wrap{
+    margin-top:20px;
+    border:1px solid var(--hair);
+    background:var(--board);
+  }
+  #map{
+    height:340px;
+    width:100%;
+    background:var(--panel);
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip{
+    background:var(--panel-raised);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+  }
+  .map-legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    padding:10px 16px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    color:var(--muted);
+    border-top:1px solid var(--hair);
+  }
+  .map-legend span{display:flex; align-items:center; gap:6px;}
+  .legend-dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+
+  /* ---------- Chat ---------- */
+  .chat-log{
+    display:flex; flex-direction:column; gap:10px;
+    max-height:calc(100vh - 380px);
+    min-height:160px;
+    overflow-y:auto;
+    padding-right:4px;
+    margin-bottom:12px;
+  }
+  .msg{
+    font-size:13px;
+    line-height:1.5;
+    padding:10px 12px;
+    border:1px solid var(--hair);
+  }
+  .msg.user{background:var(--panel); color:var(--ink);}
+  .msg.ai{background:transparent; border-color:var(--amber-dim); color:var(--ink);}
+  .msg .who{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:4px;
+  }
+  .msg.user .who{color:var(--muted);}
+  .msg.ai .who{color:var(--amber);}
+  .chat-input-row{display:flex; gap:6px;}
+  .chat-input-row input{flex:1;}
+  .chat-input-row button{
+    width:auto;
+    margin-top:0;
+    padding:0 14px;
+  }
+  .chat-hint{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    color:var(--muted);
+    margin-top:10px;
+    line-height:1.6;
+  }
+
+  .spinner{
+    display:inline-block;
+    width:12px; height:12px;
+    border:2px solid var(--hair);
+    border-top-color:var(--amber);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    margin-right:6px;
+    vertical-align:-2px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .loading-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--amber);
+    padding:16px;
+  }
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--hair);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">
+    <span class="brand-mark">TG</span>
+    <h1>Wander Planner</h1>
+    <span class="tagline">/// ADAPTIVE ITINERARY BOARD</span>
+  </div>
+  <div class="clock mono" id="clock">--:--:--</div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: Trip setup -->
+  <div class="col">
+    <p class="col-title">Trip setup</p>
+    <label for="dest">Destination</label>
+    <input type="text" id="dest" placeholder="e.g. Goa, India" value="Goa, India">
+
+    <label for="days">Trip length (days)</label>
+    <input type="number" id="days" min="1" max="30" value="2">
+    <div class="field-error" id="daysError">Trip length must be between 1 and 30 days.</div>
+
+    <label for="budget">Budget (₹ INR, total)</label>
+    <input type="number" id="budget" min="1000" step="500" value="50000">
+    <div class="field-error" id="budgetError">Please enter a valid budget greater than ₹0.</div>
+
+    <label>Preferences</label>
+    <div class="chips" id="prefChips">
+      <div class="chip active" data-val="beaches">beaches</div>
+      <div class="chip active" data-val="history">history &amp; forts</div>
+      <div class="chip" data-val="food">food &amp; cafes</div>
+      <div class="chip" data-val="nightlife">nightlife</div>
+      <div class="chip" data-val="nature">nature</div>
+      <div class="chip" data-val="museums">museums</div>
+      <div class="chip" data-val="relaxed">relaxed pace</div>
+      <div class="chip" data-val="adventure">adventure</div>
+    </div>
+
+    <label for="notes">Anything else? (optional)</label>
+    <textarea id="notes" placeholder="e.g. traveling with a toddler, vegetarian food only..." maxlength="500"></textarea>
+
+    <button class="btn" id="genBtn">Generate itinerary</button>
+
+    <div class="section-gap">
+      <p class="col-title">Simulate a disruption</p>
+      <div class="disrupt-list" id="disruptList">
+        <button class="disrupt-btn" data-d="flight" disabled><span>Flight delayed 3 hours</span><span class="icon">✈</span></button>
+        <button class="disrupt-btn" data-d="weather" disabled><span>Heavy rain forecast</span><span class="icon">☂</span></button>
+        <button class="disrupt-btn" data-d="traffic" disabled><span>Severe traffic congestion</span><span class="icon">🚗</span></button>
+        <button class="disrupt-btn" data-d="closed" disabled><span>Attraction closed / overbooked</span><span class="icon">⛔</span></button>
+      </div>
+      <label for="customDisrupt">Custom disruption</label>
+      <div class="chat-input-row">
+        <input type="text" id="customDisrupt" placeholder="Describe what happened..." disabled>
+        <button class="btn btn-ghost btn-danger" id="customDisruptBtn" style="width:auto;" disabled>Apply</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="undoBtn" disabled>↺ Undo disruption</button>
+        <button class="btn btn-ghost btn-danger" id="resetBtn" disabled>Reset itinerary</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Board -->
+  <div class="col">
+    <p class="col-title">Itinerary</p>
+
+    <div class="budget-panel" id="budgetPanel">
+      <div class="budget-grid">
+        <div class="budget-cell"><div class="lbl">Total budget</div><div class="val" id="bTotal">—</div></div>
+        <div class="budget-cell"><div class="lbl">Estimated cost</div><div class="val" id="bCost">—</div></div>
+        <div class="budget-cell" id="bRemainCell"><div class="lbl">Remaining</div><div class="val" id="bRemain">—</div></div>
+        <div class="budget-cell"><div class="lbl">Usage</div><div class="val" id="bPct">—</div></div>
+      </div>
+      <div class="budget-bar-track"><div class="budget-bar-fill" id="bBarFill" style="width:0%;"></div></div>
+      <div class="budget-warning" id="bWarning">⚠ This itinerary exceeds your available budget. Ask TravelGPT for cheaper alternatives or remove an item.</div>
+    </div>
+
+    <div class="board-wrap">
+      <div class="trip-summary" id="tripSummary" style="display:none;"></div>
+      <div class="board-head">
+        <div>TIME</div><div>EVENT</div><div>STATUS</div><div style="text-align:right;">EST. COST</div>
+      </div>
+      <div id="boardBody">
+        <div class="empty-board">
+          <div class="big">· · ·</div>
+          Set your trip on the left and generate an itinerary.<br>The board will populate here.
+        </div>
+      </div>
+    </div>
+    <div class="announcement" id="announcement">
+      <div class="label">AI replan notice</div>
+      <div id="announcementText"></div>
+    </div>
+
+    <div class="map-wrap" id="mapWrap" style="display:none;">
+      <div id="map"></div>
+      <div class="map-legend">
+        <span><span class="legend-dot" style="background:var(--teal);"></span>Hotel</span>
+        <span><span class="legend-dot" style="background:var(--amber);"></span>Activity</span>
+        <span><span class="legend-dot" style="background:var(--amber-dim);"></span>Food</span>
+        <span><span class="legend-dot" style="background:var(--ink);"></span>Transport</span>
+        <span><span class="legend-dot" style="background:var(--danger);"></span>Delayed / changed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Chat -->
+  <div class="col">
+    <p class="col-title">Ask TravelGPT</p>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Ask about your trip..." disabled>
+      <button class="btn" id="chatBtn" style="margin-top:0; width:auto;" disabled>Send</button>
+    </div>
+    <div class="chat-hint">Try: "what should I pack?" · "cheaper alternative?" · "remove the museum visit" · "add scuba diving"</div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------- Config ----------
+// Override at runtime with `window.TRAVELGPT_API_BASE = "https://your-api.example.com/api"`
+// before this script runs, or edit the fallback below for your deployment.
+const API_BASE = window.TRAVELGPT_API_BASE || "http://127.0.0.1:8000/api";
+
+// ---------- Clock ----------
+function tick(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB');
+}
+tick(); setInterval(tick, 1000);
+
+// ---------- State ----------
+let state = {
+  sessionId: null,
+  destination: '',
+  days: 2,
+  budget: 50000,
+  preferences: [],
+  notes: '',
+  itinerary: []
+};
+let map = null;
+let mapMarkers = {};   // id -> Leaflet marker
+let mapRoute = null;
+
+// ---------- Currency ----------
+// TravelGPT is INR-only. There is no currency toggle and no conversion —
+// every amount shown or sent to the backend is Indian Rupees.
+function formatMoney(amount) {
+  return '₹' + Math.round(amount).toLocaleString('en-IN');
+}
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---------- Preference chips ----------
+document.querySelectorAll('#prefChips .chip').forEach(chip=>{
+  chip.addEventListener('click', ()=> chip.classList.toggle('active'));
+});
+
+// ---------- Validation ----------
+function validateSetup(){
+  let ok = true;
+  const days = Number(document.getElementById('days').value);
+  const budget = Number(document.getElementById('budget').value);
+  const daysErr = document.getElementById('daysError');
+  const budgetErr = document.getElementById('budgetError');
+  if(!Number.isFinite(days) || days < 1 || days > 30){ daysErr.classList.add('show'); ok = false; } else { daysErr.classList.remove('show'); }
+  if(!Number.isFinite(budget) || budget <= 0){ budgetErr.classList.add('show'); ok = false; } else { budgetErr.classList.remove('show'); }
+  return ok;
+}
+
+// ---------- Board rendering ----------
+function statusClass(status){
+  if(status === 'changed') return 'status-changed';
+  if(status === 'delayed') return 'status-delayed';
+  return 'status-on-time';
+}
+function statusLabel(status){
+  if(status === 'changed') return 'Updated';
+  if(status === 'delayed') return 'Delayed';
+  return 'On Time';
+}
+function rowClass(status){
+  if(status === 'delayed') return 'status-delayed-row';
+  if(status === 'changed') return 'status-changed-row';
+  return '';
+}
+
+function renderBoard(flipIds){
+  const body = document.getElementById('boardBody');
+  const summary = document.getElementById('tripSummary');
+
+  if(state.itinerary.length === 0){
+    body.innerHTML = `<div class="empty-board"><div class="big">· · ·</div>Set your trip on the left and generate an itinerary.</div>`;
+    summary.style.display = 'none';
+    document.getElementById('mapWrap').style.display = 'none';
+    return;
+  }
+
+  summary.style.display = 'flex';
+  summary.innerHTML = `
+    <span>DEST <b>${escapeHtml(state.destination.toUpperCase())}</b></span>
+    <span>DAYS <b>${state.days}</b></span>
+    <span>STOPS <b>${state.itinerary.length}</b></span>`;
+
+  body.innerHTML = state.itinerary.map((e)=> `
+    <div class="board-row ${rowClass(e.status)}" data-id="${e.id}" draggable="true">
+      <div class="flip-inner">
+        <div class="board-time mono">${e.time}</div>
+        <div class="board-event">
+          <div class="title">${escapeHtml(e.title)}</div>
+          <div class="meta">${escapeHtml(e.location || '')}${e.day ? ' · DAY ' + e.day : ''}</div>
+          ${e.reason ? `<div class="reason">${escapeHtml(e.reason)}</div>` : ''}
+        </div>
+        <div class="board-status ${statusClass(e.status)}">${statusLabel(e.status)}</div>
+        <div class="board-cost">${formatMoney(e.cost)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  if(flipIds && flipIds.length){
+    flipIds.forEach(id=>{
+      const row = body.querySelector(`.board-row[data-id="${id}"]`);
+      if(row){ row.classList.add('flipping'); setTimeout(()=> row.classList.remove('flipping'), 460); }
+    });
+  }
+
+  attachRowInteractions();
+  renderMap();
+}
+
+function setAnnouncement(text){
+  if(!text) return;
+  const box = document.getElementById('announcement');
+  document.getElementById('announcementText').textContent = text;
+  box.classList.add('show');
+}
+
+function renderBudget(budget){
+  const panel = document.getElementById('budgetPanel');
+  if(!budget){ panel.classList.remove('show'); return; }
+  panel.classList.add('show');
+  document.getElementById('bTotal').textContent = formatMoney(budget.total_budget);
+  document.getElementById('bCost').textContent = formatMoney(budget.estimated_cost);
+  document.getElementById('bRemain').textContent = formatMoney(budget.remaining_budget);
+  document.getElementById('bPct').textContent = budget.usage_percent + '%';
+  const fill = document.getElementById('bBarFill');
+  fill.style.width = Math.min(100, budget.usage_percent) + '%';
+  fill.classList.toggle('over', !!budget.over_budget);
+  document.getElementById('bRemainCell').classList.toggle('warn', !!budget.over_budget);
+  document.getElementById('bWarning').classList.toggle('show', !!budget.over_budget);
+}
+
+function updateActionButtons(data){
+  document.getElementById('undoBtn').disabled = !(data && data.can_undo);
+  document.getElementById('resetBtn').disabled = state.itinerary.length === 0;
+}
+
+// ---------- Map ----------
+const TYPE_COLOR = {hotel:'#4fb6a8', activity:'#e8a33d', food:'#8a6524', transport:'#f1ede4'};
+
+function ensureMap(){
+  if(map) return;
+  map = L.map('map', {zoomControl:true, attributionControl:true}).setView([20.5937,78.9629], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO',
+    maxZoom:19
+  }).addTo(map);
+}
+
+function renderMap(){
+  if(state.itinerary.length === 0) return;
+  document.getElementById('mapWrap').style.display = 'block';
+  ensureMap();
+  setTimeout(()=> map.invalidateSize(), 50);
+
+  Object.values(mapMarkers).forEach(m=> map.removeLayer(m));
+  mapMarkers = {};
+  if(mapRoute){ map.removeLayer(mapRoute); mapRoute = null; }
+
+  const pts = [];
+  state.itinerary.forEach(e=>{
+    if(typeof e.lat !== 'number' || typeof e.lng !== 'number') return;
+    const changed = e.status !== 'on-time';
+    const color = changed ? '#d9603d' : (TYPE_COLOR[e.type] || '#e8a33d');
+    const marker = L.circleMarker([e.lat, e.lng], {
+      radius: 8, color: color, weight: 2, fillColor: color, fillOpacity: 0.85
+    }).addTo(map);
+    marker.bindPopup(`<b>${escapeHtml(e.title)}</b><br>${escapeHtml(e.location||'')}<br>${e.time} · Day ${e.day}`);
+    marker.on('click', ()=> highlightRow(e.id, true));
+    mapMarkers[e.id] = marker;
+    pts.push([e.lat, e.lng]);
+  });
+
+  if(pts.length > 1){
+    mapRoute = L.polyline(pts, {color:'#4fb6a8', weight:2, opacity:0.6, dashArray:'4,6'}).addTo(map);
+  }
+  if(pts.length){
+    map.fitBounds(pts, {padding:[30,30], maxZoom:13});
+  }
+}
+
+function highlightRow(id, panMap){
+  document.querySelectorAll('.board-row.map-highlight').forEach(r=> r.classList.remove('map-highlight'));
+  const row = document.querySelector(`.board-row[data-id="${id}"]`);
+  if(row){
+    row.classList.add('map-highlight');
+    row.scrollIntoView({behavior:'smooth', block:'nearest'});
+    setTimeout(()=> row.classList.remove('map-highlight'), 1600);
+  }
+  if(panMap && mapMarkers[id]){
+    map.flyTo(mapMarkers[id].getLatLng(), Math.max(map.getZoom(), 12));
+    mapMarkers[id].openPopup();
+  }
+}
+
+// ---------- Row interactions: click-to-highlight + drag reorder ----------
+let dragSrcId = null;
+
+function attachRowInteractions(){
+  document.querySelectorAll('.board-row').forEach(row=>{
+    row.addEventListener('click', ()=> highlightRow(row.dataset.id, true));
+
+    row.addEventListener('dragstart', (e)=>{
+      dragSrcId = row.dataset.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', ()=>{
+      row.classList.remove('dragging');
+      document.querySelectorAll('.board-row.drag-over').forEach(r=> r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', (e)=>{
+      e.preventDefault();
+      if(row.dataset.id !== dragSrcId) row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
+    row.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      const targetId = row.dataset.id;
+      if(!dragSrcId || dragSrcId === targetId) return;
+      reorderLocal(dragSrcId, targetId);
+    });
+  });
+}
+
+function reorderLocal(srcId, targetId){
+  const src = state.itinerary.find(i=> i.id === srcId);
+  const target = state.itinerary.find(i=> i.id === targetId);
+  if(!src || !target || src.day !== target.day){
+    addMsg('ai', 'Items can only be reordered within the same day.');
+    return;
+  }
+  const dayItems = state.itinerary.filter(i=> i.day === src.day).sort((a,b)=> a.minutes - b.minutes);
+  const others = state.itinerary.filter(i=> i.day !== src.day);
+  const fromIdx = dayItems.findIndex(i=> i.id === srcId);
+  const toIdx = dayItems.findIndex(i=> i.id === targetId);
+  dayItems.splice(fromIdx, 1);
+  dayItems.splice(toIdx, 0, src);
+  submitReorder(src.day, dayItems.map(i=> i.id));
+}
+
+async function submitReorder(day, orderedIds){
+  if(!state.sessionId) return;
+  try {
+    const response = await fetch(`${API_BASE}/reorder`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: state.sessionId, day, ordered_ids: orderedIds})
+    });
+    const data = await response.json();
+    if(data.detail){ addMsg('ai', `Couldn't reorder: ${data.detail}`); return; }
+    applyServerState(data);
+    setAnnouncement(data.explanation);
+  } catch(err){
+    addMsg('ai', 'Error reordering that day.');
+  }
+}
+
+// ---------- Apply a serialize_session()-shaped response ----------
+function applyServerState(data){
+  state.itinerary = data.items;
+  state.destination = data.destination;
+  state.days = data.days;
+  renderBudget(data.budget);
+  updateActionButtons(data);
+}
+
+// ---------- Generate itinerary ----------
+document.getElementById('genBtn').addEventListener('click', async ()=>{
+  if(!validateSetup()) return;
+  const btn = document.getElementById('genBtn');
+  const destInput = document.getElementById('dest').value.trim() || 'Goa, India';
+  const daysInput = Number(document.getElementById('days').value) || 2;
+  const budgetInput = Number(document.getElementById('budget').value) || 50000;
+  const notesInput = document.getElementById('notes').value.trim();
+  const prefsInput = Array.from(document.querySelectorAll('#prefChips .chip.active')).map(c=>c.dataset.val);
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generating...';
+  document.getElementById('boardBody').innerHTML = '<div class="loading-line"><span class="spinner"></span>TravelGPT is building your itinerary...</div>';
+  document.getElementById('announcement').classList.remove('show');
+  renderBudget(null);
+
+  try {
+    const response = await fetch(`${API_BASE}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destination: destInput, days: daysInput, budget: budgetInput,
+        preferences: prefsInput, notes: notesInput
+      })
+    });
+    const data = await response.json();
+
+    if (data.error) {
+      let breakdownHtml = '';
+      if (data.breakdown) {
+        breakdownHtml = `
+          <div class="breakdown-box">
+            <div class="bd-title">COST BREAKDOWN</div>
+            <div class="breakdown-row"><span>Transport</span><span>${formatMoney(data.breakdown.transport)}</span></div>
+            <div class="breakdown-row"><span>Accommodation</span><span>${formatMoney(data.breakdown.accommodation)}</span></div>
+            <div class="breakdown-row"><span>Activities &amp; Food</span><span>${formatMoney(data.breakdown.activities_and_food)}</span></div>
+            <div class="breakdown-row total"><span>Recommended budget</span><span>${formatMoney(data.recommended_budget)}</span></div>
+          </div>`;
+      }
+      document.getElementById('boardBody').innerHTML = `<div class="empty-board error-board"><div class="big">!</div>${escapeHtml(data.error)}${breakdownHtml}</div>`;
+      state.sessionId = null;
+      state.itinerary = [];
+      updateActionButtons(null);
+    } else {
+      state.sessionId = data.session_id;
+      applyServerState(data);
+      renderBoard();
+      document.querySelectorAll('.disrupt-btn').forEach(b=> b.disabled = false);
+      document.getElementById('customDisrupt').disabled = false;
+      document.getElementById('customDisruptBtn').disabled = false;
+      document.getElementById('chatInput').disabled = false;
+      document.getElementById('chatBtn').disabled = false;
+      document.getElementById('chatLog').innerHTML = '';
+      addMsg('ai', `Itinerary generated for ${data.destination}. Ask me anything about it, or simulate a disruption on the left.`);
+    }
+  } catch(err) {
+    document.getElementById('boardBody').innerHTML = `<div class="empty-board">Error connecting to backend. Check that the API server is running and reachable at ${escapeHtml(API_BASE)}.</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate itinerary';
+  }
+});
+
+// ---------- Disruption handling ----------
+async function applyDisruption(description){
+  if(!state.sessionId || state.itinerary.length === 0) return;
+  const allBtns = document.querySelectorAll('.disrupt-btn, #customDisruptBtn, #genBtn, #undoBtn, #resetBtn');
+  allBtns.forEach(b=> b.disabled = true);
+
+  addMsg('user', `⚠ Disruption: ${description}`);
+  const thinkingId = addMsg('ai', '<span class="spinner"></span>TravelGPT is replanning...', true);
+
+  try {
+    const response = await fetch(`${API_BASE}/replan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: state.sessionId, description })
+    });
+    const data = await response.json();
+    if(data.detail){ updateMsg(thinkingId, data.detail); return; }
+    applyServerState(data);
+    renderBoard(data.changed_ids);
+    setAnnouncement(data.explanation || 'Updated.');
+    updateMsg(thinkingId, data.explanation || 'Updated.');
+  } catch(err) {
+    updateMsg(thinkingId, `Error during replanning.`);
+  } finally {
+    allBtns.forEach(b=> b.disabled = false);
+    updateActionButtons({can_undo: true});
+  }
+}
+
+document.querySelectorAll('.disrupt-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const d = btn.dataset.d;
+    const texts = {flight: 'Flight delayed 3 hours', weather: 'Heavy rain', traffic: 'Traffic congestion', closed: 'Attraction closed'};
+    applyDisruption(texts[d]);
+  });
+});
+
+document.getElementById('customDisruptBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('customDisrupt');
+  if(input.value.trim()) applyDisruption(input.value.trim());
+  input.value = '';
+});
+
+// ---------- Undo / Reset ----------
+document.getElementById('undoBtn').addEventListener('click', async ()=>{
+  if(!state.sessionId) return;
+  const btn = document.getElementById('undoBtn');
+  btn.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/undo`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: state.sessionId})
+    });
+    const data = await response.json();
+    if(data.detail){ addMsg('ai', data.detail); return; }
+    applyServerState(data);
+    renderBoard();
+    setAnnouncement(data.explanation);
+    addMsg('ai', data.explanation || 'Reverted to the previous itinerary state.');
+  } catch(err){
+    addMsg('ai', 'Error undoing the last change.');
+  } finally {
+    updateActionButtons({can_undo: state.sessionId ? true : false});
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  if(!state.sessionId) return;
+  if(!confirm('Reset the itinerary to its originally generated plan? This clears all disruptions and edits.')) return;
+  const btn = document.getElementById('resetBtn');
+  btn.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/reset`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: state.sessionId})
+    });
+    const data = await response.json();
+    if(data.detail){ addMsg('ai', data.detail); return; }
+    applyServerState(data);
+    renderBoard();
+    document.getElementById('announcement').classList.remove('show');
+    addMsg('ai', data.explanation || 'Itinerary reset.');
+  } catch(err){
+    addMsg('ai', 'Error resetting the itinerary.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- Chat ----------
+let msgCounter = 0;
+function addMsg(who, html, isHtml){
+  const log = document.getElementById('chatLog');
+  const id = 'm' + (msgCounter++);
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.id = id;
+  div.innerHTML = `<span class="who">${who === 'user' ? 'You' : 'TravelGPT'}</span>${isHtml ? html : escapeHtml(html)}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return id;
+}
+function updateMsg(id, text){
+  const el = document.getElementById(id);
+  if(el) el.innerHTML = `<span class="who">TravelGPT</span>${escapeHtml(text)}`;
+}
+
+async function sendChat(){
+  const input = document.getElementById('chatInput');
+  const val = input.value.trim();
+  if(!val || !state.sessionId) return;
+  input.value = '';
+  addMsg('user', val);
+  const thinkingId = addMsg('ai', '<span class="spinner"></span>Thinking...', true);
+
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: state.sessionId, message: val })
+    });
+    const data = await response.json();
+    if(data.detail){ updateMsg(thinkingId, data.detail); return; }
+    updateMsg(thinkingId, data.reply);
+    if(data.modified){
+      applyServerState(data);
+      renderBoard();
+    }
+  } catch(err) {
+    updateMsg(thinkingId, `Error.`);
+  }
+}
+
+document.getElementById('chatBtn').addEventListener('click', sendChat);
+document.getElementById('chatInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') sendChat();
+});
+</script>
+</body>
+</html>
